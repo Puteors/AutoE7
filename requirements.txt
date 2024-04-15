@@ -2,3 +2,4 @@ numpy
 pyautogui
 keyboard
 opencv-python
+tk
