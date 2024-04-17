@@ -5,18 +5,14 @@ import os
 import time
 import win32gui
 import threading
-from tkinter import messagebox
-
-IMAGE_PATH = "../images/"
-TIME_SLEEP = 0.2
-VALUE = {"buy_mys": 280_000, "buy_bm": 184_000}
+import constants
 
 
 class AutoRefreshShop(threading.Thread):
     def __init__(self, root, cost, ss, window_title, callback):
         threading.Thread.__init__(self)
         self.root = root
-        self.running = True
+        self.isRunning = True
         self.dt = {}
         self.total = 0
         self.total_ss = 0
@@ -29,9 +25,11 @@ class AutoRefreshShop(threading.Thread):
         win32gui.MoveWindow(hwnd, 0, 0, 1184, 681, True)
 
     def read_image(self):
-        imgs = os.listdir(IMAGE_PATH)
+        imgs = os.listdir(constants.IMAGE_PATH)
         for img in imgs:
-            self.dt[img[:-4]] = cv2.imread(IMAGE_PATH + img, cv2.IMREAD_GRAYSCALE)
+            self.dt[img[:-4]] = cv2.imread(
+                constants.IMAGE_PATH + img, cv2.IMREAD_GRAYSCALE
+            )
 
     def click(self, btn_name):
 
@@ -41,16 +39,24 @@ class AutoRefreshShop(threading.Thread):
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
         threshold = 0.8
         if max_val >= threshold:
-            if btn_name in VALUE:
-                self.total += VALUE[btn_name]
-            if btn_name == "buy_bm":
-                self.num_bm += 1
-            elif btn_name == "buy_mys":
-                self.num_mys += 1
-            elif btn_name == "confirm":
-                self.total_ss += 3
+            self.handle_button(btn_name)
         else:
             return
+
+        self.perform_click(btn_name, max_loc)
+
+    def handle_button(self, btn_name):
+
+        if btn_name in constants.BUTTON_VALUES:
+            self.total += constants.BUTTON_VALUES[btn_name]
+        if btn_name == "buy_bm":
+            self.num_bm += 1
+        elif btn_name == "buy_mys":
+            self.num_mys += 1
+        elif btn_name == "confirm":
+            self.total_ss += 3
+
+    def perform_click(self, btn_name, max_loc):
         top_left = max_loc
         w, h = self.dt[btn_name].shape[::-1]
         center_x = top_left[0] + w - 50
@@ -60,36 +66,36 @@ class AutoRefreshShop(threading.Thread):
 
     def run(self):
         self.read_image()
-        w, h = pyautogui.size()
-        while self.running:
-            self.click("mystic")
-            time.sleep(TIME_SLEEP)
-            self.click("buy_mys")
-            time.sleep(TIME_SLEEP)
-            self.click("bookmark")
-            time.sleep(TIME_SLEEP)
-            self.click("buy_bm")
-            time.sleep(TIME_SLEEP)
-            pyautogui.moveTo(w // 2, h // 2)
-            pyautogui.scroll(-600)
-            time.sleep(TIME_SLEEP)
-            self.click("mystic")
-            time.sleep(TIME_SLEEP)
-            self.click("buy_mys")
-            time.sleep(TIME_SLEEP)
-            self.click("bookmark")
-            time.sleep(TIME_SLEEP)
-            self.click("buy_bm")
-            time.sleep(TIME_SLEEP)
 
-            if self.cost - self.total < 280_000 or self.ss - self.total_ss < 3:
+        while self.isRunning:
+            self.perform_actions()
+            if self.should_stop():
                 self.callback(self.num_bm, self.num_mys)
                 return
 
-            self.click("refresh")
-            time.sleep(TIME_SLEEP)
-            self.click("confirm")
-            time.sleep(1)
+    def perform_actions(self):
+        w, h = pyautogui.size()
+
+        for action in constants.ACTIONS:
+            if action[0] == "scroll":
+                pyautogui.moveTo(w // 2, h // 2)
+                pyautogui.scroll(-600)
+            else:
+                self.click(action[0])
+                if action[1]:
+                    time.sleep(constants.TIME_SLEEP)
+                    self.click(action[1])
+
+            time.sleep(constants.TIME_SLEEP if action[1] != "confirm" else constants.TIME_SLEEP*3)
+
+    def should_stop(self):
+        if (
+            self.cost - self.total < constants.MIN_GOLD
+            or self.ss - self.total_ss < constants.MIN_SS
+        ):
+            return True
+        else:
+            return False
 
     def get_current_state(self):
         return self.num_bm, self.num_mys
