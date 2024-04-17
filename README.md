@@ -1,4 +1,4 @@
-# Auto Refresh Shop
+# Auto Refresh Shop E7
 
 This Python script provides a GUI (Graphical User Interface) for automatically refreshing a shop in a Epic Seven Game.
 
